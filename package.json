@@ -2,15 +2,44 @@
   "name": "ai-security-skill",
   "version": "0.1.0",
   "description": "Open-source security control layer for AI coding agents.",
-  "type": "module",
-  "bin": {
-    "ai-security-skill": "dist/cli/index.js"
+  "keywords": [
+    "security",
+    "ai-security-skill",
+    "ai-agents",
+    "sast",
+    "threat-modeling",
+    "owasp",
+    "asvs",
+    "mcp",
+    "compliance",
+    "static-analysis",
+    "secrets-detection",
+    "gate"
+  ],
+  "homepage": "https://github.com/Abhishekksoni/ai-security-skill#readme",
+  "bugs": {
+    "url": "https://github.com/Abhishekksoni/ai-security-skill/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abhishekksoni/ai-security-skill.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Abhishek Soni (https://github.com/Abhishekksoni)",
+  "type": "module",
   "exports": {
     ".": {
       "import": "./dist/core/engine.js",
       "types": "./dist/core/engine.d.ts"
     }
+  },
+  "main": "./dist/core/engine.js",
+  "bin": {
+    "ai-security-skill": "dist/cli/index.js"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
   },
   "files": [
     "dist",
@@ -30,9 +59,6 @@
     "benchmark": "tsx tests/benchmark/runner.ts",
     "prepare": "npm run build"
   },
-  "engines": {
-    "node": ">=20"
-  },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
     "typescript": "^5.9.2",
@@ -45,13 +71,7 @@
     "jsonwebtoken": "^9.0.3",
     "tsx": "^4.20.3"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Abhishekksoni/ai-security-skill.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Abhishekksoni/ai-security-skill/issues"
-  },
-  "homepage": "https://github.com/Abhishekksoni/ai-security-skill#readme",
-  "license": "Apache-2.0"
+  "engines": {
+    "node": ">=20"
+  }
 }

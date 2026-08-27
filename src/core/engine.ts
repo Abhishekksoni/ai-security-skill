@@ -70,6 +70,19 @@ export async function init(root: string) {
     } satisfies SecurityState);
   }
   if (!(await exists(p.findings))) await writeJson(p.findings, []);
+
+  // Proactively prevent committing .security to git
+  const gitignorePath = path.join(root, '.gitignore');
+  try {
+    let content = '';
+    if (await exists(gitignorePath)) {
+      content = await readText(gitignorePath) ?? '';
+    }
+    if (!content.split('\n').some(line => line.trim() === '.security' || line.trim() === '.security/')) {
+      const separator = content.endsWith('\n') || content === '' ? '' : '\n';
+      await fs.writeFile(gitignorePath, content + separator + '\n# Local security control plane state\n.security/\n', 'utf8');
+    }
+  } catch {}
 }
 
 export async function getContext(root: string): Promise<ProjectContext> {
@@ -527,7 +540,7 @@ export async function generateReport(root: string): Promise<string> {
   let threatModelSection = '';
   if (threatModel) {
     threatModelSection = `
-## 4. Threat Model Summary
+## 1. Threat Model Summary
 - **Assets**:
 ${threatModel.assets?.map((a: any) => `  - [${a.id}] **${a.name}** (Sensitivity: ${a.sensitivity})`).join('\n') || '  - none'}
 - **Actors**:
@@ -540,8 +553,8 @@ ${threatModel.threats?.map((t: any) => `  - [${t.id}] **${t.category}** [${t.sev
   const report = `# Security Audit Report - ${context.name ?? 'Project'}
 Generated: ${new Date().toISOString()}
 Security State Status: **${state.status?.toUpperCase() ?? 'UNKNOWN'}**
-
-## 1. Project Context
+${threatModelSection}
+## 2. Project Context
 - **Name**: ${context.name}
 - **Project Type**: ${context.type}
 - **Frontend Stack**: ${context.stack?.frontend?.join(', ') || 'none'}
@@ -550,14 +563,14 @@ Security State Status: **${state.status?.toUpperCase() ?? 'UNKNOWN'}**
 - **Authentication**: ${context.authentication?.detected ? `Yes (via ${context.authentication.providers.join(', ')})` : 'No'}
 - **AI Stack**: ${context.ai?.detected ? `Yes (providers: ${context.ai.providers.join(', ')}, frameworks: ${context.ai.frameworks.join(', ')})` : 'No'}
 
-## 2. Security Gate Settings
+## 3. Security Gate Settings
 - **Block on Severities**: ${policy.blockOn?.join(', ') || 'none'}
 - **Maximum Warning Thresholds**: ${Object.entries(policy.maxFindings ?? {}).map(([k, v]) => `${k}=${v}`).join(', ') || 'none'}
 - **Required Controls**: ${policy.requiredRules?.join(', ') || 'none'}
 
-## 3. Active Security Requirements (${reqs.length})
+## 4. Active Security Requirements (${reqs.length})
 ${reqs.map(r => `- **${r.id}** [${r.severity.toUpperCase()}]: ${r.description}`).join('\n')}
-${threatModelSection}
+
 ## 5. Findings Summary
 - **Open Findings**: ${openFindings.length}
 - **Ignored Exceptions**: ${ignoredFindings.length}

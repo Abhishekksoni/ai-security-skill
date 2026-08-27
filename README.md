@@ -1,59 +1,69 @@
-# Agent Security Control Layer (security-skill)
+# Agent Security Control Layer (ai-security-skill)
 
-> **Security infrastructure for AI-generated software. Establish requirements, review risky changes, scan implementations, and block insecure deployments—all inside the AI loop.**
-
----
-
-## 1. What Problem This Solves
-
-AI coding agents (such as Claude Code, Codex, Cursor, and others) are incredibly productive at writing code, but they lack human-like security intuition. They are prone to introducing critical vulnerabilities like IDOR/BOLA, SQL injection, hardcoded secrets, and unsafe execution configurations. 
-
-Furthermore, **an AI coding agent should never define its own security requirements or certify its own work as secure**. 
-
-`security-skill` solves this by introducing a local-first, deterministic security control plane that runs as an independent guardrail around AI agent workflows. It enforces safety constraints, runs AST and dependency scanners, logs findings, and dynamically blocks deployment gates.
+> **Standards-based security control plane for AI coding agents. Establish requirements, trace threats, scan implementations with taint analysis, and block insecure deployments—all inside the local development loop.**
 
 ---
 
-## 2. Why AI Coding Agents Need This
+## 1. How It Works: The Context-Aware Pipeline
 
-AI coding loops move too fast for traditional manual review. Integrating `security-skill` into the loop ensures:
-- **Traceability**: Threats map directly to security requirements, rules, scanners, and findings.
-- **Risk-Based Context**: Agents are given immediate implementation guidance before writing code (via `review-change`).
-- **Independent Verification**: Gate results are deterministic and based on scanner output; agents cannot self-resolve findings without correcting the code.
-- **Local Enforcement**: Run entirely offline on the developer's local machine, protecting sensitive intellectual property.
+Unlike generic scanners that run blind checks and flood developers with noisy alerts, `ai-security-skill` follows a **Context-First** verification methodology:
+
+1. **Context Discovery**: The engine dynamically profiles your project (detecting language, frameworks, auth, database stacks, payments, and AI capabilities) to construct a localized `.security/context.yaml` profile.
+2. **Framework Alignment**: The project context is evaluated against our **Standards Database** (OWASP ASVS V5, OWASP API Security, OWASP GenAI, NIST SSDF, and CIS Controls) to automatically map only the security requirements that apply to your code.
+3. **Control Applicability**: Dynamic applicability rules evaluate which controls must be checked. For instance, if Stripe or PayPal imports are detected, it triggers the payment amount integrity checks; if LLM or agent tool configurations are detected, it activates agent validation checks.
+4. **AST & Taint-Flow Verification**: Executes structural parsing (AST compiler nodes) and dataflow taint propagation trackers to inspect inputs. It checks if client-tampered pricing reaches payment intents, or if unvalidated tool selections reach agent boundaries.
+5. **Deterministic Policy Gate**: Blocks or allows builds based on compliance policy limits, treating unverified or `UNKNOWN` control states with conservative default gates.
+
+---
+
+## 2. Key Features
+
+- **Contextual Security Mapping**: Automatically extracts requirements from standard security frameworks based on your specific application stack context.
+- **Advanced Taint Analysis Engine**: Traces how variables propagate from untrusted requests (`req.body`, `req.json()`) to sensitive payment API sinks (e.g. Stripe checkout) to protect e-commerce transactional integrity (`BL-001`).
+- **AI Agent Security Boundaries**: Validates LLM tool catalog boundaries to verify that agent integrations enforce user session checks and lack excessive execution privileges.
+- **Independent Verification**: Gate decisions are deterministic and run local-first, preventing AI coding assistants from certifying their own work or bypassing security policies.
+- **100% Local and Private**: Runs completely offline under `.security/` inside your repository without cloud telemetry.
 
 ---
 
 ## 3. Architecture
 
 ```text
-            AI AGENT
-               │
-               ▼
-        SECURITY CONTROL
-             LAYER (MCP/CLI)
-               │
-     ┌─────────┼─────────┐
-     ▼         ▼         ▼
- Threat      Rules     Scanners
- Model       Engine    & AST Analysis
-     │         │         │
-     └─────────┼─────────┘
-               ▼
-          FINDINGS
-               │
-               ▼
-        SECURITY GATE
-          │          │
-        BLOCK       PASS
-          │          │
-          ▼          ▼
-       REMEDIATE   DEPLOY
+                       AI AGENT / DEVELOPER
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │   ai-security-skill   │
+                     │    (MCP Server/CLI)   │
+                     └───────────┬───────────┘
+                                 │
+            ┌────────────────────┼────────────────────┐
+            ▼                    ▼                    ▼
+     [ KNOWLEDGE ]         [ REASONING ]        [ DETERMINISTIC ]
+      Frameworks &         Project Profile       Static Scanners &
+       Standards            Threat Model        Taint-Flow Engine
+    (OWASP/NIST/CIS)             │                    │
+            │                    │                    │
+            └───────────┬────────┘                    │
+                        ▼                             ▼
+                  Requirements                     Findings
+                        │                             │
+                        └─────────────┬───────────────┘
+                                      ▼
+                               ┌─────────────┐
+                               │ POLICY GATE │
+                               └──────┬──────┘
+                                      │
+                     ┌────────────────┴────────────────┐
+                     ▼                                 ▼
+                 [ PASS ]                      [ BLOCK / WARN ]
+              Gate Exits 0                      Gate Exits 1
+           (Deploy/Integrate)                (Remediate/ADR Exception)
 ```
 
-- **Deterministic Layer**: Performs robust AST analysis using the TypeScript Compiler API, secret scanning, environment parsing, and handles integrations with external tools.
-- **Reasoning Layer**: Handles threat modeling, authorization pattern definitions, and agent permissions.
-- **State memory**: Entirely contained in `.security/` under the target repository root.
+- **Knowledge Layer**: Framework specifications (OWASP ASVS, API, GenAI, NIST, CIS) are loaded dynamically from machine-readable YAML configs.
+- **Control Layer**: Map framework requirements to actual verification controls (Authentication, Tenancy, Injection, Secrets, Business Logic, AI agent validation).
+- **Verification Engine**: Executes AST analysis, taint propagation trackers, and optional external adapters to determine control status (`PASS` | `FAIL` | `UNKNOWN`).
 
 ---
 
@@ -63,8 +73,8 @@ Ensure Node.js >= 20 is installed, then run:
 
 ```bash
 # Clone the repository
-git clone https://github.com/open-security/agent-security-skill.git
-cd agent-security-skill
+git clone https://github.com/Abhishekksoni/ai-security-skill.git
+cd ai-security-skill
 
 # Install dependencies
 npm install
@@ -86,41 +96,35 @@ Run the following commands in any target codebase directory:
 
 ```bash
 # 1. Initialize the security directory (.security/)
-security-skill init
+npx ai-security-skill init
 
-# 2. Discover the project stack and sensitive signals
-security-skill discover
+# 2. Scan workspace (runs profiling, threat modeling, AST scanners, and updates report.md)
+npx ai-security-skill scan
 
-# 3. Generate the baseline threat model
-security-skill threat-model
+# 3. Check status of all security controls checklist
+npx ai-security-skill status
 
-# 4. Generate security requirements mapped to rules
-security-skill requirements
-
-# 5. Scan the workspace for vulnerabilities (builtin AST + external tools)
-security-skill scan
-
-# 6. Evaluate findings against the security policy gate
-security-skill gate
+# 4. Evaluate findings against the security policy gate
+npx ai-security-skill gate
 ```
 
 ---
 
 ## 6. CLI Usage
 
-The `security-skill` binary supports the following subcommands:
+The `ai-security-skill` binary supports the following subcommands:
 
 - `init`: Creates `.security/` state layout.
 - `discover`: Scans files and prints JSON representation of the stack.
 - `requirements`: Returns applicable security requirement lists in YAML.
 - `threat-model`: Outputs a custom threat model in YAML.
-- `review-change --type=<type> --path=<path> --description=<desc>`: Assesses a proposed change and returns controls.
-- `scan [--changed]`: Runs local analyzers. `--changed` targets only files modified in git status/diff.
+- `review-change --description=<desc>`: Assesses a proposed change (e.g. adding payment checkouts) and returns required controls, threats, and test recommendations.
+- `scan [--changed]`: Runs local analyzers and automatically updates `.security/report.md` (and threat model).
 - `findings`: Lists all open security findings.
 - `explain [finding-id]`: Prints analysis, attack scenarios, and required fixes for a finding.
-- `gate`: Evaluates findings against policy. Exits `0` on PASS, `1` on BLOCK, `2` on warning, `3` on error.
+- `gate`: Evaluates findings against policy. Exits `0` on PASS, `1` on BLOCK.
 - `report`: Compiles a detailed markdown audit report to `.security/report.md`.
-- `status`: Show local security state.
+- `status`: Show security state checklist including evaluated controls.
 
 ---
 
@@ -131,25 +135,14 @@ Expose all capabilities of the control plane directly to your AI editor (Cursor,
 ```json
 {
   "mcpServers": {
-    "agent-security-skill": {
+    "ai-security-skill": {
       "command": "node",
-      "args": ["/absolute/path/to/agent-security-skill/dist/mcp/server.js"],
+      "args": ["/absolute/path/to/ai-security-skill/dist/mcp/server.js"],
       "env": {}
     }
   }
 }
 ```
-
-### Exposed MCP Tools
-- `security_initialize`: Prepares control structure.
-- `security_context`: Inspects project details.
-- `security_requirements`: Lists active policies.
-- `security_review_change`: Runs predictive controls check on planned features.
-- `security_threat_model`: Retransmits threat maps.
-- `security_scan`: Runs security checks.
-- `security_findings`: Returns all open findings.
-- `security_explain_finding`: Detailed remediation steps for a finding.
-- `security_gate`: Runs gates check.
 
 ---
 
@@ -167,22 +160,28 @@ maxFindings:
 requiredRules:
   - SECRET-001
   - AUTHZ-001
+unknown:
+  critical: block
+  high: block
+  medium: warn
+  low: allow
 ```
 
-If any critical/high findings are open, or if `SECRET-001` or `AUTHZ-001` are triggered, `security-skill gate` will block the commit/deployment.
+If any critical/high findings are open, or if an applicable control remains in an `UNKNOWN` state (for critical/high categories), `ai-security-skill gate` will block the commit/deployment.
 
 ---
 
 ## 9. Supported Scanners
 
-1. **Built-in AST Engine (TypeScript Compiler API)**: Performs syntactical data-flow analysis on JavaScript/TypeScript to check for:
-   - IDOR / BOLA (database lookups without session checks)
-   - Prompt Injection paths (interpolation in system prompts)
-   - SQL Injection (template literals in raw queries)
-   - OS Command Injection (shell interpolation in exec/spawn)
-   - Weak JWT signature verify settings
-   - Tool Excessive Agency & Tool Authorization flaws
-2. **External Adapters (Optional, Auto-detected)**:
+1. **Taint Analysis Engine**: Syntactically traces untrusted user request inputs (e.g., body parameters, API query strings) to sensitive execution sinks. Specifically evaluates e-commerce checkout routes to verify that payments are constructed using database-derived product pricing rather than client-supplied amounts (`BL-001`).
+2. **Built-in AST Engine**: Evaluates:
+   - IDOR / BOLA (database queries without session filters)
+   - Prompt Injection paths (interpolation in LLM instruction blocks)
+   - SQL Injection (string templates in raw client statements)
+   - OS Command Injection (shell interpolation in child_process.exec)
+   - Weak JWT signature verify settings (allowing "none" algorithm)
+   - AI agent tool catalog definitions (ensuring direct validation checks)
+3. **External Adapters (Optional, Auto-detected)**:
    - **Gitleaks**: Secrets detection.
    - **Semgrep**: Advanced SAST scanning.
    - **npm audit**: Dependency scanning.
@@ -191,26 +190,10 @@ If any critical/high findings are open, or if `SECRET-001` or `AUTHZ-001` are tr
 
 ---
 
-## 10. Rule Development
+## 10. Privacy & Data Handling
 
-Rules are declared in JSON files under the `rules/` directory (categorized by universal, typescript, python, ai, etc.).
-
-Example rule structure:
-```json
-{
-  "id": "AUTHZ-001",
-  "name": "Missing server-side resource authorization",
-  "category": "authorization",
-  "severity": "critical",
-  "blocking": true,
-  "description": "Resource mutations or lookups must verify ownership or explicit authorization roles."
-}
-```
-
-To contribute a new rule:
-1. Define the rule JSON under `rules/<category>/rules.json`.
-2. Add a vulnerable fixture under `fixtures/vulnerable/` and a secure fixture under `fixtures/secure/`.
-3. Update tests under `tests/rules.test.ts` to assert detection.
+- **100% Offline**: All AST analysis, secret scans, dataflow tracing, and dependency parsing run locally.
+- **No Telemetry**: No tracking identifiers, usage metrics, or source code are sent to external backends.
 
 ---
 
@@ -230,22 +213,3 @@ reason: SQL query is executed against a hardcoded sqlite memory db.
 ```
 
 The engine parses these files, checks the expiration date and approval status, and automatically suppresses findings with active decisions.
-
----
-
-## 12. Privacy & Data Handling
-
-- **100% Offline**: All AST analysis, secret scans, and dependency parsing run locally.
-- **No Telemetry**: No tracking identifiers, usage metrics, or source code are sent to external backends.
-
----
-
-## 13. Limitations
-
-- `security-skill` is designed as a developer-assistant guardrail; it does **not** replace professional penetration testing, runtime WAF filters, or comprehensive security reviews.
-
----
-
-## 14. Contribution Guidelines
-
-We welcome community rules! Please check [CONTRIBUTING.md](file:///Users/abhisheksoni/Downloads/ai-security-skill/CONTRIBUTING.md) for rule authoring requirements.

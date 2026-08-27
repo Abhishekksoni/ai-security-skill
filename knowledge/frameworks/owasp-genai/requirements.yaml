@@ -1,0 +1,22 @@
+id: owasp-genai
+name: "OWASP Top 10 for LLM and GenAI Security"
+version: "1.0"
+sourceUrl: "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+license: "CC-BY-SA-4.0"
+requirements:
+  - id: LLM-INJECTION-001
+    title: "Prompt Injection"
+    description: "Prevent untrusted inputs from overriding model instructions."
+    category: "ai"
+  - id: LLM-EXCESSIVE-AGENCY-001
+    title: "Excessive Agency"
+    description: "AI agents must not have autonomous capabilities without human-in-the-loop validation or strict verification logic."
+    category: "ai"
+  - id: LLM-TOOL-AUTH-001
+    title: "Tool Authorization Bypass"
+    description: "Tool calls triggered by AI models must go through independent application validation check boundaries."
+    category: "ai"
+  - id: LLM-IMPROPER-OUTPUT-001
+    title: "Improper Output Handling"
+    description: "AI outputs must be parsed safely before execution."
+    category: "ai"

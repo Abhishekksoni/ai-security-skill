@@ -1,0 +1,10 @@
+id: cis
+name: "CIS Critical Security Controls"
+version: "8.0"
+sourceUrl: "https://www.cisecurity.org/controls"
+license: "Restricted Use"
+requirements:
+  - id: CIS-CONTROL-16.1
+    title: "Secure Application Development Lifecycle"
+    description: "Scan applications and verify core controls."
+    category: "supply-chain"

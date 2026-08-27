@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { exists, readJson } from '../core/fs.js';
-import { getContext, getRequirements, generateThreatModel, init, scan, gate, reviewChange, generateReport } from '../core/engine.js';
+import { getContext, getRequirements, generateThreatModel, init, scan, gate, reviewChange, generateReport, getVerificationStates } from '../core/engine.js';
 import type { Finding } from '../core/types.js';
 
 const args = process.argv.slice(2);
@@ -63,6 +63,7 @@ async function main() {
         const fileLoc = f.location?.file ? ` (${f.location.file}${f.location.line ? `:${f.location.line}` : ''})` : '';
         console.log(`${f.severity.toUpperCase()} ${f.rule_id} ${f.title}${fileLoc}`);
       }
+      console.log(`\n✓ Generated threat-model and detailed report at ${path.join(root, '.security', 'report.md')}`);
       break;
     }
 
@@ -146,7 +147,28 @@ async function main() {
 
     case 'status': {
       const p = path.join(root, '.security', 'state.json');
-      print(await readJson(p, { status: 'uninitialized' }));
+      const state = await readJson<any>(p, { status: 'uninitialized' });
+      
+      console.log('=== Project Security State ===');
+      console.log(`Last Scan: ${state.lastScanAt ?? 'never'}`);
+      console.log(`Last Gate Evaluation: ${state.lastGateAt ?? 'never'}`);
+      console.log(`Overall Gate Status: ${state.status?.toUpperCase() ?? 'UNKNOWN'}`);
+      console.log('');
+      
+      try {
+        const verifications = await getVerificationStates(root);
+        console.log('Checked Security Controls:');
+        console.log('─────────────────────────────────────────────────────────────────');
+        console.log('Control ID         Status      Name');
+        console.log('─────────────────────────────────────────────────────────────────');
+        for (const v of verifications) {
+          const statusStr = v.status === 'PASS' ? '✔ PASS' : v.status === 'FAIL' ? '✘ FAIL' : '⚠ UNKNOWN';
+          console.log(`${v.controlId.padEnd(18)} ${statusStr.padEnd(11)} ${v.name}`);
+        }
+        console.log('─────────────────────────────────────────────────────────────────');
+      } catch (err) {
+        console.error('Error fetching controls status:', err);
+      }
       break;
     }
 

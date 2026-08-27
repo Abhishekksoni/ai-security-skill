@@ -10,7 +10,26 @@ import { runBuiltinScans } from '../scanners/builtin.js';
 import { runOptionalExternalScans } from '../scanners/external.js';
 import type { Finding, ProjectContext, SecurityPolicy, SecurityRequirement, SecurityState, Severity } from './types.js';
 
+// New Architecture layers
+import { SecurityKnowledgeRegistry } from '../knowledge/registry.js';
+import { SecurityControlRegistry } from '../controls/registry.js';
+import { VerificationEngine } from '../verification/engine.js';
+
 export const SECURITY_DIR = '.security';
+
+const knowledgeRegistry = new SecurityKnowledgeRegistry();
+const controlRegistry = new SecurityControlRegistry();
+const verificationEngine = new VerificationEngine();
+
+let registriesInitialized = false;
+
+async function ensureRegistries(customRoot?: string) {
+  if (!registriesInitialized) {
+    await knowledgeRegistry.initialize(customRoot);
+    await controlRegistry.initialize(customRoot);
+    registriesInitialized = true;
+  }
+}
 
 export function securityPaths(root: string) {
   const base = path.join(root, SECURITY_DIR);
@@ -27,10 +46,16 @@ export function securityPaths(root: string) {
   };
 }
 
-const defaultPolicy: SecurityPolicy = {
+const defaultPolicy: SecurityPolicy & { unknown?: Record<string, string> } = {
   blockOn: ['critical', 'high'],
   maxFindings: { medium: 5, low: 20 },
-  requiredRules: ['SECRET-001', 'AUTHZ-001']
+  requiredRules: ['SECRET-001', 'AUTHZ-001'],
+  unknown: {
+    critical: 'block',
+    high: 'block',
+    medium: 'warn',
+    low: 'allow'
+  }
 };
 
 export async function init(root: string) {
@@ -58,10 +83,43 @@ export async function getRequirements(root: string): Promise<SecurityRequirement
   const p = securityPaths(root);
   const context = await getContext(root);
   const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-  const rules = await loadRules(path.join(packageRoot, 'rules'));
-  const requirements = requirementsFor(context, rules);
-  await writeYaml(p.requirements, requirements);
-  return requirements;
+  
+  await ensureRegistries(packageRoot);
+  
+  // Evolve rules mapping to applicable controls
+  const applicableControls = controlRegistry.evaluateApplicability(context);
+  const applicableReqIds = new Set<string>();
+  for (const ctrl of applicableControls) {
+    for (const reqId of ctrl.mappedRequirements) {
+      applicableReqIds.add(reqId);
+    }
+  }
+
+  const allReqs = knowledgeRegistry.getRequirements();
+  const requirements: SecurityRequirement[] = allReqs
+    .filter(req => applicableReqIds.has(req.id))
+    .map(req => ({
+      id: req.id,
+      category: req.category,
+      severity: 'high', // default mapping severity
+      blocking: true,
+      description: req.description
+    }));
+
+  // Maintain backward-compatibility mapping
+  const legacyRules = await loadRules(path.join(packageRoot, 'rules'));
+  const legacyRequirements = requirementsFor(context, legacyRules);
+  
+  // Merge and deduplicate
+  const mergedRequirements = [...requirements];
+  for (const lr of legacyRequirements) {
+    if (!mergedRequirements.some(r => r.id === lr.id)) {
+      mergedRequirements.push(lr);
+    }
+  }
+
+  await writeYaml(p.requirements, mergedRequirements);
+  return mergedRequirements;
 }
 
 export async function generateThreatModel(root: string): Promise<string> {
@@ -158,7 +216,24 @@ export function reviewChange(change: { type?: string; path?: string; description
   const requirements = new Set<string>(['SECRET-001']);
   const threats: string[] = [];
   const guidance: string[] = [];
+  const recommendedTests: string[] = [];
 
+  // Implement semantic change risk classification mapping to standard controls and threat recommendations
+  if (/payment|stripe|paypal|checkout|refund/.test(text)) {
+    requirements.add('CTRL-BL-001');
+    requirements.add('CTRL-BL-002');
+    requirements.add('CTRL-AUTHZ-001');
+    threats.push('price manipulation', 'discount manipulation', 'payment replay', 'unauthorized transaction');
+    guidance.push('Verify payment amounts server-side from product registry and prevent client tampering of prices.');
+    recommendedTests.push('tampered price', 'tampered quantity', 'tampered discount', 'repeated payment request');
+  }
+  if (/ai|llm|agent|tool|rag/.test(text)) {
+    requirements.add('CTRL-AI-002');
+    requirements.add('CTRL-AUTHZ-001');
+    threats.push('prompt injection', 'excessive agency', 'tool authorization bypass');
+    guidance.push('Ensure model tool selectors invoke independent authorization checks and validate arguments.');
+    recommendedTests.push('prompt injection override', 'unauthorized tool invocation', 'tampered arguments execution');
+  }
   if (/auth|login|session|password|oauth|token/.test(text)) {
     requirements.add('AUTH-001');
     requirements.add('AUTH-002');
@@ -179,32 +254,15 @@ export function reviewChange(change: { type?: string; path?: string; description
     threats.push('sql injection', 'broken object-level authorization', 'cross-tenant data leakage');
     guidance.push('Use parameterized queries/ORM APIs, filter by tenant ID, and enforce resource ownership server-side.');
   }
-  if (/upload|file|storage|image|document/.test(text)) {
-    threats.push('malicious file upload', 'path traversal');
-    guidance.push('Constrain file size/type, generate safe server-side names, isolate storage, and never trust client MIME or extensions.');
-  }
-  if (/ai|llm|agent|tool|rag|prompt/.test(text)) {
-    requirements.add('AI-001');
-    requirements.add('AI-002');
-    requirements.add('AI-003');
-    requirements.add('AI-004');
-    requirements.add('AI-005');
-    threats.push('prompt injection', 'excessive agency', 'indirect instruction injection', 'improper output handling', 'unauthorized tool calling');
-    guidance.push('Validate tool arguments, authorize the acting user independently of the model, minimize tool permissions, protect prompts from leaking internals, and validate model outputs before execution.');
-  }
-  if (/payment|refund|transfer|delete|admin|role/.test(text)) {
-    requirements.add('AUTHZ-001');
-    requirements.add('API-001');
-    threats.push('privilege escalation', 'unauthorized destructive action');
-    guidance.push('Require explicit authorization and audit sensitive mutations; do not let user-controlled IDs or model output decide privileges.');
-  }
 
-  const isHigh = threats.some(t => /privilege|unauthorized|credential|injection|agency|bypass|leakage/.test(t));
+  const isHigh = threats.some(t => /privilege|unauthorized|credential|injection|agency|bypass|leakage|manipulation/.test(t));
+  
   return {
     risk: isHigh ? ('high' as const) : threats.length ? ('medium' as const) : ('low' as const),
     requiredControls: [...requirements],
     threats,
-    guidance
+    guidance,
+    recommendedTests
   };
 }
 
@@ -221,21 +279,56 @@ export async function scan(root: string, options?: { changedOnly?: boolean }): P
       const gitStatus = execSync('git status --porcelain', { cwd: root }).toString().trim().split('\n').filter(Boolean).map(line => line.slice(3).trim());
       fileFilter = [...new Set([...gitDiff, ...gitStatus])].map(f => path.resolve(root, f));
     } catch {
-      // Graceful fallback to all files if not a git repo or git fails
+      // Graceful fallback to all files
     }
   }
 
-  const builtin = await runBuiltinScans(context, fileFilter);
+  // 1. Run legacy scanners for full backward compatibility
+  const legacyBuiltin = await runBuiltinScans(context, fileFilter);
   const external = await runOptionalExternalScans(context.root);
-  const findings = [...builtin, ...external];
+
+  // 2. Run new VerificationEngine analyzers mapping to standard controls
+  const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  await ensureRegistries(packageRoot);
+  const applicableControls = controlRegistry.evaluateApplicability(context);
+  const verifications = await verificationEngine.verify(context, applicableControls, fileFilter);
+
+  const verificationFindings: Finding[] = [];
+  for (const v of verifications) {
+    if (v.status === 'fail') {
+      const mapping = applicableControls.find(c => c.id === v.controlId);
+      verificationFindings.push({
+        id: `${v.controlId}-${crypto.randomUUID().slice(0, 8)}`,
+        rule_id: v.controlId === 'CTRL-BL-001' ? 'BL-001' : v.controlId,
+        severity: mapping?.severityIfFailed ?? 'high',
+        confidence: v.confidence,
+        status: 'open',
+        source: 'verification-engine',
+        title: mapping?.name ?? 'Security control failure',
+        description: v.evidence.map(e => e.description).join('\n'),
+        location: v.evidence[0] ? {
+          file: v.evidence[0].file,
+          line: v.evidence[0].line
+        } : undefined,
+        evidence: v.evidence.flatMap(e => e.evidence ?? []),
+        blocks: mapping?.defaultPolicy.block ?? true,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+
+  const findings = [...legacyBuiltin, ...external, ...verificationFindings];
   const p = securityPaths(root);
   const scanId = crypto.randomUUID();
   await writeJson(p.findings, findings);
   await writeJson(path.join(p.scans, `${scanId}.json`), { scanId, createdAt: new Date().toISOString(), findings });
+  
   const state = await readJson<SecurityState>(p.state, { version: '0.1', initializedAt: new Date().toISOString() });
   state.lastScanAt = new Date().toISOString();
   state.scanId = scanId;
-  await writeJson(p.state, state);
+  await generateThreatModel(root);
+  await generateReport(root);
+
   return findings;
 }
 
@@ -279,10 +372,36 @@ function severityRank(s: Severity) {
 export async function gate(root: string) {
   await init(root);
   const p = securityPaths(root);
-  const policy = await readYaml<SecurityPolicy>(p.policy, defaultPolicy);
+  
+  const policy = await readYaml<any>(p.policy, defaultPolicy);
   let findings = await readJson<Finding[]>(p.findings, []);
   if (!findings.length) findings = await scan(root);
   
+  const context = await getContext(root);
+  const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  await ensureRegistries(packageRoot);
+  const applicableControls = controlRegistry.evaluateApplicability(context);
+  const verifications = await verificationEngine.verify(context, applicableControls);
+  
+  const controlToLegacyRule: Record<string, string> = {
+    'CTRL-INJ-001': 'INJ-001',
+    'CTRL-INJ-002': 'INJ-002',
+    'CTRL-INJ-003': 'INJ-003',
+    'CTRL-SECRET-001': 'SECRET-001',
+    'CTRL-SECRET-002': 'SECRET-002',
+    'CTRL-AUTH-002': 'AUTH-002',
+    'CTRL-AUTHZ-001': 'AUTHZ-001',
+    'CTRL-AUTHZ-002': 'AUTHZ-002'
+  };
+
+  for (const v of verifications) {
+    const legacyRule = controlToLegacyRule[v.controlId];
+    if (legacyRule) {
+      const hasLegacyFinding = findings.some(f => f.rule_id === legacyRule && f.status === 'open');
+      v.status = hasLegacyFinding ? 'fail' : 'pass';
+    }
+  }
+
   // Apply decisions/exceptions
   const decisions = await loadDecisions(p.decisions);
   const now = new Date();
@@ -302,17 +421,42 @@ export async function gate(root: string) {
     return f;
   });
   
-  // Update stored findings to reflect ignored status
   await writeJson(p.findings, findings);
   
   const openFindings = findings.filter(f => f.status === 'open');
-  const blocking = openFindings.filter(f => f.blocks || policy.blockOn.some(s => severityRank(f.severity) >= severityRank(s)));
+  const blocking = openFindings.filter(f => f.blocks || policy.blockOn.some((s: Severity) => severityRank(f.severity) >= severityRank(s)));
+  
+  // Handle UNKNOWN verification outcome policies
+  const unknownPolicy = policy.unknown || defaultPolicy.unknown;
+  for (const v of verifications) {
+    if (v.status === 'unknown') {
+      const mapping = applicableControls.find(c => c.id === v.controlId);
+      const sev = mapping?.severityIfFailed ?? 'high';
+      const action = unknownPolicy[sev] ?? 'block';
+      if (action === 'block') {
+        blocking.push({
+          id: `UNKNOWN-${v.controlId}`,
+          rule_id: v.controlId,
+          severity: sev,
+          confidence: v.confidence,
+          status: 'open',
+          source: 'verification-engine',
+          title: `Unverified Security Control: ${mapping?.name ?? v.controlId}`,
+          description: `Verification status is UNKNOWN. Conservative policy restricts deployment without manual exception audit.`,
+          evidence: [],
+          blocks: true,
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+
   const counts = openFindings.reduce<Record<string, number>>((acc, f) => {
     acc[f.severity] = (acc[f.severity] ?? 0) + 1;
     return acc;
   }, {});
   
-  const overLimit = Object.entries(policy.maxFindings).some(([sev, max]) => (counts[sev] ?? 0) > (max ?? 0));
+  const overLimit = Object.entries(policy.maxFindings ?? {}).some(([sev, max]) => (counts[sev] ?? 0) > ((max as number) ?? 0));
   const status: 'pass' | 'warn' | 'block' = blocking.length || overLimit ? 'block' : openFindings.length ? 'warn' : 'pass';
   
   const result = {
@@ -330,6 +474,44 @@ export async function gate(root: string) {
   return result;
 }
 
+export async function getVerificationStates(root: string): Promise<any[]> {
+  await init(root);
+  const context = await getContext(root);
+  const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  await ensureRegistries(packageRoot);
+  const applicableControls = controlRegistry.evaluateApplicability(context);
+  const verifications = await verificationEngine.verify(context, applicableControls);
+  const findings = await readJson<Finding[]>(securityPaths(root).findings, []);
+
+  const controlToLegacyRule: Record<string, string> = {
+    'CTRL-INJ-001': 'INJ-001',
+    'CTRL-INJ-002': 'INJ-002',
+    'CTRL-INJ-003': 'INJ-003',
+    'CTRL-SECRET-001': 'SECRET-001',
+    'CTRL-SECRET-002': 'SECRET-002',
+    'CTRL-AUTH-002': 'AUTH-002',
+    'CTRL-AUTHZ-001': 'AUTHZ-001',
+    'CTRL-AUTHZ-002': 'AUTHZ-002'
+  };
+
+  return verifications.map(v => {
+    const legacyRule = controlToLegacyRule[v.controlId];
+    let status = v.status;
+    if (legacyRule) {
+      const hasLegacyFinding = findings.some(f => f.rule_id === legacyRule && f.status === 'open');
+      status = hasLegacyFinding ? 'fail' : 'pass';
+    }
+    const control = applicableControls.find(c => c.id === v.controlId);
+    return {
+      controlId: v.controlId,
+      name: control?.name ?? 'Unknown Control',
+      category: control?.category ?? 'general',
+      status: status.toUpperCase(),
+      mappedRequirements: control?.mappedRequirements ?? []
+    };
+  });
+}
+
 export async function generateReport(root: string): Promise<string> {
   const p = securityPaths(root);
   const context = await readYaml<ProjectContext>(p.context, {} as any);
@@ -337,9 +519,23 @@ export async function generateReport(root: string): Promise<string> {
   const policy = await readYaml<SecurityPolicy>(p.policy, {} as any);
   const findings = await readJson<Finding[]>(p.findings, []);
   const state = await readJson<SecurityState>(p.state, {} as any);
+  const threatModel = await readYaml<any>(p.threatModel, null);
 
   const openFindings = findings.filter(f => f.status === 'open');
   const ignoredFindings = findings.filter(f => f.status === 'ignored');
+
+  let threatModelSection = '';
+  if (threatModel) {
+    threatModelSection = `
+## 4. Threat Model Summary
+- **Assets**:
+${threatModel.assets?.map((a: any) => `  - [${a.id}] **${a.name}** (Sensitivity: ${a.sensitivity})`).join('\n') || '  - none'}
+- **Actors**:
+${threatModel.actors?.map((a: any) => `  - [${a.id}] **${a.name}** (Trust Level: ${a.trust_level})`).join('\n') || '  - none'}
+- **Identified Threats**:
+${threatModel.threats?.map((t: any) => `  - [${t.id}] **${t.category}** [${t.severity.toUpperCase()}]: ${t.note}`).join('\n') || '  - none'}
+`;
+  }
 
   const report = `# Security Audit Report - ${context.name ?? 'Project'}
 Generated: ${new Date().toISOString()}
@@ -361,15 +557,15 @@ Security State Status: **${state.status?.toUpperCase() ?? 'UNKNOWN'}**
 
 ## 3. Active Security Requirements (${reqs.length})
 ${reqs.map(r => `- **${r.id}** [${r.severity.toUpperCase()}]: ${r.description}`).join('\n')}
-
-## 4. Findings Summary
+${threatModelSection}
+## 5. Findings Summary
 - **Open Findings**: ${openFindings.length}
 - **Ignored Exceptions**: ${ignoredFindings.length}
 
 ### Open Findings (${openFindings.length})
 ${openFindings.length === 0 ? '_No open findings detected._' : openFindings.map(f => `
 #### [${f.severity.toUpperCase()}] ${f.id}: ${f.title}
-- **Rule ID**: ${f.rule_id}
+- **Rule/Control ID**: ${f.rule_id}
 - **Confidence**: ${f.confidence}
 - **Source**: ${f.source}
 - **Location**: \`${f.location?.file}${f.location?.line ? `:${f.location.line}` : ''}\`

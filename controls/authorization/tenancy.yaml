@@ -1,0 +1,13 @@
+id: CTRL-AUTHZ-002
+name: "Tenant Isolation Enforcement"
+category: "authorization"
+mapped_requirements:
+  - ASVS-AUTHZ-TENANT-001
+  - API-BOLA-002
+applicability:
+  any:
+    - project.type == 'web_application'
+    - project.stack.database.length > 0
+severity_if_failed: critical
+default_policy:
+  block: true

@@ -25,7 +25,7 @@ export async function discoverProject(root: string): Promise<ProjectContext> {
   if (depNames.includes('svelte') || depNames.includes('@sveltejs/kit')) framework.push('svelte');
 
   const backend: string[] = [];
-  for (const d of ['express', 'fastify', '@nestjs/core', 'hono', 'next']) {
+  for (const d of ['express', 'fastify', '@nestjs/core', 'hono', 'next', 'stripe', 'paypal']) {
     if (depNames.includes(d)) backend.push(d);
   }
 

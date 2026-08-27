@@ -1,0 +1,12 @@
+id: CTRL-INJ-003
+name: "SQL Injection Prevention"
+category: "injection"
+mapped_requirements:
+  - SSDF-PW-4.1
+applicability:
+  any:
+    - project.database.detected == true
+    - project.stack.database.length > 0
+severity_if_failed: critical
+default_policy:
+  block: true

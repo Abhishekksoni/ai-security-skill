@@ -1,0 +1,13 @@
+id: CTRL-AUTH-002
+name: "JWT Signature Validation"
+category: "authentication"
+mapped_requirements:
+  - ASVS-AUTH-JWT-001
+applicability:
+  any:
+    - project.stack.backend.includes('jsonwebtoken')
+    - project.stack.backend.includes('jwt')
+    - project.authentication.providers.includes('custom-jwt')
+severity_if_failed: critical
+default_policy:
+  block: true

@@ -1,0 +1,18 @@
+id: owasp-asvs
+name: "OWASP Application Security Verification Standard"
+version: "5.0"
+sourceUrl: "https://owasp.org/www-project-application-security-verification-standard/"
+license: "CC-BY-SA-4.0"
+requirements:
+  - id: ASVS-AUTH-JWT-001
+    title: "Verify JWT signatures strictly"
+    description: "JWT verifications must validate signatures and disallow the 'none' algorithm."
+    category: "authentication"
+  - id: ASVS-AUTHZ-IDOR-001
+    title: "Verify user resource ownership"
+    description: "Resource mutations or lookups must verify ownership or explicit authorization role (IDOR/BOLA prevention)."
+    category: "authorization"
+  - id: ASVS-AUTHZ-TENANT-001
+    title: "Verify tenant isolation"
+    description: "Database queries in multi-tenant contexts must restrict query scope to the authenticated tenant/organization."
+    category: "authorization"

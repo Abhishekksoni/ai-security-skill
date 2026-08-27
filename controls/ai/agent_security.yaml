@@ -1,0 +1,12 @@
+id: CTRL-AI-002
+name: "AI Agent Security Boundaries"
+category: "ai"
+mapped_requirements:
+  - LLM-EXCESSIVE-AGENCY-001
+  - LLM-TOOL-AUTH-001
+applicability:
+  any:
+    - project.ai.detected == true
+severity_if_failed: critical
+default_policy:
+  block: true

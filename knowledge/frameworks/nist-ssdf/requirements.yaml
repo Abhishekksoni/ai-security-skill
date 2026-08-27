@@ -1,0 +1,14 @@
+id: nist-ssdf
+name: "NIST Secure Software Development Framework"
+version: "1.1"
+sourceUrl: "https://csrc.nist.gov/pubs/sp/800/218/final"
+license: "Public Domain"
+requirements:
+  - id: SSDF-PW-1.1
+    title: "Configure and run code scanners"
+    description: "Scan code for vulnerabilities and misconfigurations."
+    category: "supply-chain"
+  - id: SSDF-PW-4.1
+    title: "Reuse secure software modules"
+    description: "Ensure trusted authentication/authorization controls are reused rather than handcrafting validation logic."
+    category: "authentication"

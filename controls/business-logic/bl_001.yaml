@@ -1,0 +1,11 @@
+id: CTRL-BL-001
+name: "Payment Amount Integrity"
+category: "business-logic"
+mapped_requirements:
+  - SSDF-PW-4.1
+applicability:
+  any:
+    - project.payments.enabled == true
+severity_if_failed: critical
+default_policy:
+  block: true

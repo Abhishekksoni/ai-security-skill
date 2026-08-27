@@ -1,0 +1,18 @@
+id: owasp-api
+name: "OWASP API Security Top 10"
+version: "2023"
+sourceUrl: "https://owasp.org/www-project-api-security/"
+license: "CC-BY-SA-4.0"
+requirements:
+  - id: API-BOLA-001
+    title: "Broken Object Level Authorization"
+    description: "API endpoints must validate that the user is authorized to perform the action on the requested object."
+    category: "authorization"
+  - id: API-MASS-ASSIGNMENT-001
+    title: "Mass Assignment"
+    description: "API endpoints must explicitly whitelist parameters rather than binding client inputs directly to database/internal models."
+    category: "api"
+  - id: API-BOLA-002
+    title: "Broken Object Level Authorization (Tenancy)"
+    description: "Multi-tenant APIs must restrict scopes to the tenant context."
+    category: "authorization"

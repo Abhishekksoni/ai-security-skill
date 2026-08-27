@@ -1,0 +1,13 @@
+id: CTRL-AUTHZ-001
+name: "Resource Ownership Verification"
+category: "authorization"
+mapped_requirements:
+  - ASVS-AUTHZ-IDOR-001
+  - API-BOLA-001
+applicability:
+  any:
+    - project.authentication.detected == true
+    - project.type == 'web_application'
+severity_if_failed: critical
+default_policy:
+  block: true

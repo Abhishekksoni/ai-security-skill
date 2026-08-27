@@ -1,0 +1,11 @@
+id: CTRL-INJ-002
+name: "OS Command Injection Prevention"
+category: "injection"
+mapped_requirements:
+  - SSDF-PW-4.1
+applicability:
+  any:
+    - true
+severity_if_failed: critical
+default_policy:
+  block: true

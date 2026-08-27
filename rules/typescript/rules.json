@@ -1,0 +1,77 @@
+{
+  "version": "0.1",
+  "rules": [
+    {
+      "id": "AUTH-001",
+      "name": "Missing authentication provider",
+      "category": "authentication",
+      "severity": "high",
+      "blocking": true,
+      "description": "Sensitive endpoints or AI-enabled interactive flows must enforce a valid authentication session."
+    },
+    {
+      "id": "AUTH-002",
+      "name": "Weak JWT signature validation",
+      "category": "authentication",
+      "severity": "critical",
+      "blocking": true,
+      "description": "JWT verifications must validate signatures and disallow the 'none' algorithm."
+    },
+    {
+      "id": "AUTHZ-001",
+      "name": "Missing server-side resource authorization",
+      "category": "authorization",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Resource mutations or lookups must verify ownership or explicit authorization role (IDOR/BOLA prevention)."
+    },
+    {
+      "id": "AUTHZ-002",
+      "name": "Missing tenant isolation",
+      "category": "authorization",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Database operations in multi-tenant contexts must restrict query scope to the authenticated tenant/organization."
+    },
+    {
+      "id": "INJ-001",
+      "name": "Dynamic JavaScript code execution",
+      "category": "injection",
+      "severity": "high",
+      "blocking": true,
+      "description": "Using eval() or dynamic Function constructor invites remote code execution via untrusted strings."
+    },
+    {
+      "id": "INJ-002",
+      "name": "OS command injection",
+      "category": "injection",
+      "severity": "critical",
+      "blocking": true,
+      "description": "System command execution functions must sanitize inputs or avoid shell interpretation."
+    },
+    {
+      "id": "INJ-003",
+      "name": "SQL Injection",
+      "category": "injection",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Unescaped variable interpolation in database queries bypassing query parameterization exposes the database."
+    },
+    {
+      "id": "API-001",
+      "name": "Rate limiting missing",
+      "category": "api",
+      "severity": "high",
+      "blocking": false,
+      "description": "Sensitive endpoints like authentication, reset password, and heavy mutations require rate limiting controls."
+    },
+    {
+      "id": "API-002",
+      "name": "Mass assignment vulnerability",
+      "category": "api",
+      "severity": "high",
+      "blocking": true,
+      "description": "Accepting unvalidated request parameters to update database objects invites parameter pollution and modification of system fields."
+    }
+  ]
+}

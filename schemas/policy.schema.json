@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SecurityPolicy",
+  "type": "object",
+  "required": ["blockOn", "maxFindings", "requiredRules"],
+  "properties": {
+    "blockOn": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["info", "low", "medium", "high", "critical"]
+      }
+    },
+    "maxFindings": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "requiredRules": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

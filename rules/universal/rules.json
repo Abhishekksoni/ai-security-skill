@@ -1,0 +1,45 @@
+{
+  "version": "0.1",
+  "rules": [
+    {
+      "id": "SECRET-001",
+      "name": "Hardcoded secret detection",
+      "category": "secrets",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Secrets, private keys, or API tokens must not be committed to source control."
+    },
+    {
+      "id": "SECRET-002",
+      "name": "Literal credentials in config templates",
+      "category": "secrets",
+      "severity": "medium",
+      "blocking": false,
+      "description": "Example environment or configuration templates should avoid exposing realistic or literal credential values."
+    },
+    {
+      "id": "CONFIG-001",
+      "name": "Production debug mode enabled",
+      "category": "configuration",
+      "severity": "high",
+      "blocking": true,
+      "description": "Debug or development modes must be disabled in production deployments to prevent sensitive error leakage."
+    },
+    {
+      "id": "CONFIG-002",
+      "name": "Insecure cookie configuration",
+      "category": "configuration",
+      "severity": "medium",
+      "blocking": false,
+      "description": "Cookies must be configured with Secure, HttpOnly, and SameSite attributes to defend against hijacking and CSRF."
+    },
+    {
+      "id": "API-003",
+      "name": "Overly permissive CORS configuration",
+      "category": "api",
+      "severity": "medium",
+      "blocking": false,
+      "description": "Cross-Origin Resource Sharing policies should restrict origins rather than allowing wildcards with credentials."
+    }
+  ]
+}

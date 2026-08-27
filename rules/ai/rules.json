@@ -1,0 +1,45 @@
+{
+  "version": "0.1",
+  "rules": [
+    {
+      "id": "AI-001",
+      "name": "Prompt injection vulnerability",
+      "category": "ai_security",
+      "severity": "high",
+      "blocking": true,
+      "description": "Exposing raw LLM system prompts directly to unvalidated user-controlled inputs allows manipulation of agent behavior."
+    },
+    {
+      "id": "AI-002",
+      "name": "Excessive agency in tools configuration",
+      "category": "ai_security",
+      "severity": "critical",
+      "blocking": true,
+      "description": "AI models should not be granted direct, autonomous, destructive capabilities without structural human-in-the-loop limits."
+    },
+    {
+      "id": "AI-003",
+      "name": "Sensitive context disclosure",
+      "category": "ai_security",
+      "severity": "medium",
+      "blocking": false,
+      "description": "Prompts or system parameters must not leak architecture, source code files, database schemas, or API keys to the model outputs."
+    },
+    {
+      "id": "AI-004",
+      "name": "Improper output handling",
+      "category": "ai_security",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Model outputs must not be parsed and fed directly into executable contexts such as shell spawns, eval, or raw database parameters."
+    },
+    {
+      "id": "AI-005",
+      "name": "Tool authorization bypass",
+      "category": "ai_security",
+      "severity": "critical",
+      "blocking": true,
+      "description": "Tool actions requested by the AI model must undergo user session authorization check independently of the LLM context."
+    }
+  ]
+}

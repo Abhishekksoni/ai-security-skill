@@ -1,0 +1,32 @@
+{
+  "name": "@open-security/agent-security-skill",
+  "version": "0.1.0",
+  "description": "Open-source security control layer for AI coding agents.",
+  "type": "module",
+  "bin": {
+    "security-skill": "dist/cli/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx",
+    "mcp": "tsx src/mcp/server.ts",
+    "check": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  },
+  "license": "Apache-2.0"
+}

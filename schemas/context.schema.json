@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectContext",
+  "type": "object",
+  "required": [
+    "name",
+    "root",
+    "type",
+    "stack",
+    "authentication",
+    "ai",
+    "database",
+    "entryPoints",
+    "sensitiveSignals",
+    "discoveredAt"
+  ],
+  "properties": {
+    "name": { "type": "string" },
+    "root": { "type": "string" },
+    "type": { "type": "string" },
+    "stack": {
+      "type": "object",
+      "properties": {
+        "frontend": { "type": "array", "items": { "type": "string" } },
+        "backend": { "type": "array", "items": { "type": "string" } },
+        "database": { "type": "array", "items": { "type": "string" } },
+        "detectedFiles": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["frontend", "backend", "database"]
+    },
+    "authentication": {
+      "type": "object",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "providers": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["detected", "providers"]
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "providers": { "type": "array", "items": { "type": "string" } },
+        "frameworks": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["detected", "providers", "frameworks"]
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "systems": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["detected", "systems"]
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string" },
+          "path": { "type": "string" }
+        },
+        "required": ["kind", "path"]
+      }
+    },
+    "sensitiveSignals": { "type": "array", "items": { "type": "string" } },
+    "discoveredAt": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-security-skill": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/ai-security-skill/dist/mcp/server.js"]
+    }
+  }
+}

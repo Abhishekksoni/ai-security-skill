@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ThreatModel",
+  "type": "object",
+  "required": [
+    "version",
+    "application",
+    "assets",
+    "actors",
+    "entry_points",
+    "trust_boundaries",
+    "threats"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "application": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "sensitivity"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "sensitivity": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+        }
+      }
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trust_level"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "trust_level": { "type": "string", "enum": ["untrusted", "trusted", "privileged"] }
+        }
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "path"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "trust_boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "from", "to"],
+        "properties": {
+          "id": { "type": "string" },
+          "from": { "type": "string" },
+          "to": { "type": "string" }
+        }
+      }
+    },
+    "threats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "severity", "asset", "entry_point"],
+        "properties": {
+          "id": { "type": "string" },
+          "category": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+          "asset": { "type": "string" },
+          "entry_point": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

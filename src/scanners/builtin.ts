@@ -471,7 +471,7 @@ export async function runBuiltinScans(context: ProjectContext, fileFilter?: stri
   // 3. Environment Example literal password/keys (SECRET-002)
   try {
     const envExample = await readText(path.join(context.root, '.env.example'));
-    if (envExample && /(PASSWORD|SECRET|TOKEN|API_KEY)\s*=\s*(?!["']?\s*CHANGE_ME\s*["']?|["']?\s*["']?)(["']?[a-zA-Z0-9_\-]{8,40}["']?)/i.test(envExample)) {
+    if (envExample && /(PASSWORD|SECRET|TOKEN|API_KEY)\s*=\s*(?!["']?\s*CHANGE_ME\s*["']?)(["']?[a-zA-Z0-9_\-]{8,40}["']?)/i.test(envExample)) {
       findings.push(makeFinding({
         id: 'CONFIG-ENV-001',
         rule_id: 'SECRET-002',

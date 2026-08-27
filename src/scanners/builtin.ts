@@ -20,14 +20,22 @@ export async function runBuiltinScans(context: ProjectContext, fileFilter?: stri
     return [];
   }
   
-  const textFiles = files.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|json|yaml|yml|env|toml|sql|md)$/i.test(f));
+  const textFiles = files.filter(f => {
+    const base = path.basename(f).toLowerCase();
+    return (
+      /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|json|yaml|yml|env|toml|sql|md|astro|svelte|vue|html)$/i.test(f) ||
+      base === '.env' ||
+      base.startsWith('.env.') ||
+      base === 'env'
+    );
+  });
   const codeFiles = files.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(f));
 
   // 1. Secrets Regex Scans
   const secretPatterns: Array<[RegExp, string]> = [
     [/AKIA[0-9A-Z]{16}/g, 'AWS access key format detected'],
     [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, 'Private key material detected'],
-    [/(?:api[_-]?key|secret|token|password|session[_-]?secret)\s*[:=]\s*["'][^"'\n]{16,}["']/gi, 'Potential hardcoded credential detected']
+    [/(?:api[_-]?key|secret|token|password|session[_-]?secret|key)[^\n:=]*[:=][^\n()\[\]]*["']([^"'\n\s]{16,})["']/gi, 'Potential hardcoded credential detected']
   ];
 
   for (const file of textFiles) {
@@ -39,7 +47,24 @@ export async function runBuiltinScans(context: ProjectContext, fileFilter?: stri
       // Don't scan lockfiles or built packages for secrets
       if (/package-lock\.json|yarn\.lock|pnpm-lock\.yaml|dist\/|build\//.test(rel)) continue;
 
-      for (const [pattern, evidence] of secretPatterns) {
+      const isEnv = /\benv\b|\.env($|\.)/i.test(path.basename(rel));
+      const fileSecretPatterns: Array<[RegExp, string]> = [
+        [/AKIA[0-9A-Z]{16}/g, 'AWS access key format detected'],
+        [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, 'Private key material detected']
+      ];
+      if (isEnv) {
+        fileSecretPatterns.push([
+          /(?:api[_-]?key|secret|token|password|session[_-]?secret|key)\s*=\s*(["']?)[^\n"'\s]{4,}\1/gi,
+          'Potential hardcoded credential detected'
+        ]);
+      } else {
+        fileSecretPatterns.push([
+          /(?:api[_-]?key|secret|token|password|session[_-]?secret|key)[^\n:=]*[:=][^\n()\[\]]*["']([^"'\n\s]{16,})["']/gi,
+          'Potential hardcoded credential detected'
+        ]);
+      }
+
+      for (const [pattern, evidence] of fileSecretPatterns) {
         pattern.lastIndex = 0;
         const match = pattern.exec(raw);
         if (match) {

@@ -44,7 +44,15 @@ export class VerificationEngine {
       return [];
     }
 
-    const textFiles = files.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|json|yaml|yml|env|toml|sql|md)$/i.test(f));
+    const textFiles = files.filter(f => {
+      const base = path.basename(f).toLowerCase();
+      return (
+        /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|json|yaml|yml|env|toml|sql|md|astro|svelte|vue|html)$/i.test(f) ||
+        base === '.env' ||
+        base.startsWith('.env.') ||
+        base === 'env'
+      );
+    });
     const codeFiles = files.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(f));
 
     // Initialize all applicable controls to UNKNOWN

@@ -138,6 +138,7 @@ export async function getRequirements(root: string): Promise<SecurityRequirement
 export async function generateThreatModel(root: string): Promise<string> {
   const p = securityPaths(root);
   const c = await getContext(root);
+  const findings = await readJson<Finding[]>(p.findings, []);
   
   // Build assets
   const assets = [
@@ -177,17 +178,51 @@ export async function generateThreatModel(root: string): Promise<string> {
     { id: 'TB001', from: 'Anonymous internet user', to: 'Application endpoints' }
   ];
 
+  // Helper to find files where this category of threat is detected
+  const getDetectedFiles = (category: string): string[] => {
+    const rules = {
+      sql_injection: ['INJ-003', 'CTRL-INJ-003'],
+      broken_access_control: ['AUTHZ-001', 'AUTHZ-002', 'CTRL-AUTHZ-001', 'CTRL-AUTHZ-002'],
+      prompt_injection: ['AI-001', 'CTRL-AI-001'],
+      excessive_agency: ['AI-002', 'CTRL-AI-002', 'AI-005'],
+      privilege_escalation: ['BL-001', 'CTRL-BL-001', 'CTRL-BL-002'],
+      credential_leakage: ['SECRET-001', 'SECRET-002', 'CTRL-SECRET-001', 'CTRL-SECRET-002']
+    }[category] || [];
+
+    const files = findings
+      .filter(f => (rules.includes(f.rule_id) || rules.some(r => f.id.startsWith(r))) && f.status === 'open' && f.location?.file)
+      .map(f => f.location!.file);
+      
+    return [...new Set(files)];
+  };
+
+  // Helper to resolve threat entry point from findings
+  const resolveEntryPointId = (category: string, defaultId: string): string => {
+    const files = getDetectedFiles(category);
+    for (const file of files) {
+      const found = entryPoints.find(ep => 
+        file.toLowerCase().includes(ep.path.toLowerCase()) || 
+        ep.path.toLowerCase().includes(file.toLowerCase())
+      );
+      if (found) return found.id;
+    }
+    return defaultId;
+  };
+
   // Build threats
   const threats: any[] = [];
   let threatIdx = 1;
-  const addThreat = (category: string, severity: string, asset: string, entry: string, note: string) => {
+  const addThreat = (category: string, severity: string, asset: string, defaultEntry: string, note: string) => {
+    const files = getDetectedFiles(category);
+    const entryId = resolveEntryPointId(category, defaultEntry);
+    const suffix = files.length > 0 ? ` (Detected in: ${files.join(', ')})` : '';
     threats.push({
       id: `T${String(threatIdx++).padStart(3, '0')}`,
       category,
       severity,
       asset,
-      entry_point: entry,
-      note
+      entry_point: entryId,
+      note: note + suffix
     });
   };
 
@@ -204,7 +239,7 @@ export async function generateThreatModel(root: string): Promise<string> {
   if (c.sensitiveSignals.includes('payments')) {
     addThreat('privilege_escalation', 'critical', 'A004', entryPoints[0].id, 'Validate payment-related operations with independent backend checks and signed webhooks.');
   }
-  addThreat('credential_leakage', 'critical', 'A002', 'E001', 'Use environment secrets and prevent hardcoded access credentials in source code repositories.');
+  addThreat('credential_leakage', 'critical', 'A002', entryPoints[0].id, 'Use environment secrets and prevent hardcoded access credentials in source code repositories.');
 
   const threatModelObj = {
     version: '1.0',
@@ -279,6 +314,62 @@ export function reviewChange(change: { type?: string; path?: string; description
   };
 }
 
+function sanitizeFinding(finding: Finding): Finding {
+  const f = { ...finding };
+  
+  const isEnv = f.location?.file && (
+    path.basename(f.location.file).toLowerCase() === '.env' ||
+    path.basename(f.location.file).toLowerCase().startsWith('.env.') ||
+    path.basename(f.location.file).toLowerCase() === 'env'
+  );
+
+  if (isEnv) {
+    f.evidence = ['Value omitted. Security threat detected in environment configuration file.'];
+    f.description = 'Security threat detected in environment configuration file.';
+    return f;
+  }
+
+  const sanitizeText = (text: string): string => {
+    if (!text) return text;
+    let sanitized = text;
+    // Redact AWS access keys
+    sanitized = sanitized.replace(/AKIA[0-9A-Z]{16}/g, '[REDACTED]');
+    // Redact private key blocks
+    sanitized = sanitized.replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, '[REDACTED]');
+    // Redact common key/secret/password assignments: key="val" or key: "val" or key = val
+    sanitized = sanitized.replace(
+      /(\b(api[_-]?key|secret|token|password|session[_-]?secret|pwd|auth|credential|[a-z0-9_]+_key|[a-z0-9_]+_secret|[a-z0-9_]+_token|[a-z0-9_]+_password)\s*[:=]\s*)(["'])(?:[^\n"'\\]|\\.)*\3/gi,
+      '$1$3[REDACTED]$3'
+    );
+    sanitized = sanitized.replace(
+      /(\b(api[_-]?key|secret|token|password|session[_-]?secret|pwd|auth|credential|[a-z0-9_]+_key|[a-z0-9_]+_secret|[a-z0-9_]+_token|[a-z0-9_]+_password)\s*[:=]\s*)([^\s"'\n]{4,})/gi,
+      '$1[REDACTED]'
+    );
+    // Redact environment variable style assignments: UPPER_SNAKE=value
+    sanitized = sanitized.replace(
+      /(\b[A-Z0-9_]+\s*=\s*)(["'])(?:[^\n"'\\]|\\.)*\2/g,
+      '$1$2[REDACTED]$2'
+    );
+    sanitized = sanitized.replace(
+      /(\b[A-Z0-9_]+\s*=\s*)([^\s"'\n]{2,})/g,
+      '$1[REDACTED]'
+    );
+    return sanitized;
+  };
+
+  if (f.evidence) {
+    f.evidence = f.evidence.map(ev => (typeof ev === 'string' ? sanitizeText(ev) : ev));
+  }
+  if (f.description) {
+    f.description = sanitizeText(f.description);
+  }
+  if (f.title) {
+    f.title = sanitizeText(f.title);
+  }
+
+  return f;
+}
+
 export async function scan(root: string, options?: { changedOnly?: boolean }): Promise<Finding[]> {
   await init(root);
   const context = await getContext(root);
@@ -331,10 +422,11 @@ export async function scan(root: string, options?: { changedOnly?: boolean }): P
   }
 
   const findings = [...legacyBuiltin, ...external, ...verificationFindings];
+  const sanitizedFindings = findings.map(sanitizeFinding);
   const p = securityPaths(root);
   const scanId = crypto.randomUUID();
-  await writeJson(p.findings, findings);
-  await writeJson(path.join(p.scans, `${scanId}.json`), { scanId, createdAt: new Date().toISOString(), findings });
+  await writeJson(p.findings, sanitizedFindings);
+  await writeJson(path.join(p.scans, `${scanId}.json`), { scanId, createdAt: new Date().toISOString(), findings: sanitizedFindings });
   
   const state = await readJson<SecurityState>(p.state, { version: '0.1', initializedAt: new Date().toISOString() });
   state.lastScanAt = new Date().toISOString();
@@ -342,7 +434,7 @@ export async function scan(root: string, options?: { changedOnly?: boolean }): P
   await generateThreatModel(root);
   await generateReport(root);
 
-  return findings;
+  return sanitizedFindings;
 }
 
 interface Decision {
